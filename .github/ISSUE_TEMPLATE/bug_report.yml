@@ -1,0 +1,43 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `python app.py route --project . --task "..."`
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Router version
+      description: Output of `python app.py version`.
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [strict, lazy, launcher, panel only]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output or screenshot
+      description: Remove personal paths and tokens before posting.
+      render: text

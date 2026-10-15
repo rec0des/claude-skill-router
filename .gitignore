@@ -1,0 +1,15 @@
+__pycache__/
+.state/
+.hook-cache/
+.sessions/
+.quarantine/
+.staging/
+profiles/
+config.json
+.claude-flow/
+static/.claude-flow/
+.claude/
+.playwright-mcp/
+.serena/
+*.jsonl
+.env*
