@@ -110,11 +110,20 @@ An optional `config.json` next to `app.py`:
   "blocked": [],
   "keep_plugins": [],
   "auto_cleanup": false,
-  "context_limit": null
+  "context_limit": null,
+  "laya": false
 }
 ```
 
 Environment variables: `SKILL_ROUTER_MODE` (`strict`, `lazy`, `launcher`) and `SKILL_ROUTER_CONTEXT_LIMIT` (tokens).
+
+### Optional Laya classifier
+
+Laya is a local model that guesses the task's area (frontend, backend, testing and so on) when no keyword in the prompt does. It is off by default because it holds about 900 MB of RAM and seldom changes the selection.
+
+To use it, set `"laya": true` and put a service at `../laya-runtime/laya_service.py`, or point `SKILL_ROUTER_LAYA_DIR` at another folder. The service runs from that folder's `.venv` and answers on `127.0.0.1:9130`. The first session hook starts it, and a start marker keeps sessions that open together from starting a second copy.
+
+If the service uses Python's `http.server`, set `allow_reuse_address = False`, set `SO_EXCLUSIVEADDRUSE` on Windows, and bind the port before loading the model. A duplicate then fails at once instead of loading the model and sharing the port.
 
 ## Privacy and security
 

@@ -581,6 +581,52 @@ class HookTests(IsolatedHome):
         self.assertEqual(self.run_hook(payload), b"")
 
 
+ENSURE_LAYA = hook.ensure_laya_service
+
+
+class LayaStartTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "python.exe").write_text("", encoding="utf-8")
+        (root / "laya_service.py").write_text("", encoding="utf-8")
+        self.popen = mock.Mock()
+        self.config = {"laya": True}
+        self.patches = [
+            mock.patch.multiple(hook, STATE=root / "state", LAYA_PYTHON=root / "python.exe", LAYA_SERVICE=root / "laya_service.py",
+                                load_config=lambda: self.config, laya_online=lambda timeout=0.25: False),
+            mock.patch.object(hook.subprocess, "Popen", self.popen),
+        ]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+        self.tmp.cleanup()
+
+    def test_disabled_by_default(self):
+        self.assertFalse(app.DEFAULT_CONFIG["laya"])
+        self.config = {}
+        ENSURE_LAYA()
+        self.popen.assert_not_called()
+
+    def test_sessions_starting_together_launch_one_service(self):
+        for _ in range(3):
+            ENSURE_LAYA()
+        self.assertEqual(self.popen.call_count, 1)
+        flags = self.popen.call_args.kwargs["creationflags"]
+        self.assertEqual(flags & getattr(hook.subprocess, "DETACHED_PROCESS", 0), 0)
+
+    def test_stale_marker_allows_a_new_start(self):
+        ENSURE_LAYA()
+        marker = hook.STATE / "laya-starting"
+        old = time.time() - hook.LAYA_START_GRACE - 5
+        os.utime(marker, (old, old))
+        ENSURE_LAYA()
+        self.assertEqual(self.popen.call_count, 2)
+
+
 class ContextMonitorTests(unittest.TestCase):
     def test_bands_and_limits(self):
         with tempfile.TemporaryDirectory() as tmp:

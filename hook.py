@@ -35,13 +35,44 @@ MIN_PROMPT_CHARS = 12
 WEAK_MATCH = 45  # below this, no installed skill covers the prompt well
 
 
+LAYA_START_GRACE = 180  # seconds the model may take to load before another start is allowed
+
+
+def spawn_hidden(args: list[str], **kwargs) -> None:
+    """Starts a background process with a hidden console. DETACHED_PROCESS is avoided on purpose:
+    a detached process has no console, so every console program it runs opens a visible window."""
+    subprocess.Popen(args, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs)
+
+
+def claim_laya_start() -> bool:
+    """Atomic marker so that sessions starting together launch a single Laya service."""
+    marker = STATE / "laya-starting"
+    STATE.mkdir(exist_ok=True)
+    for _ in range(2):
+        try:
+            os.close(os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            return True
+        except FileExistsError:
+            try:
+                if time.time() - marker.stat().st_mtime < LAYA_START_GRACE:
+                    return False
+                marker.unlink()
+            except OSError:
+                return False
+        except OSError:
+            return False
+    return False
+
+
 def ensure_laya_service() -> None:
-    if laya_online(0.2) or not LAYA_PYTHON.exists() or not LAYA_SERVICE.exists():
+    if not load_config().get("laya") or not LAYA_PYTHON.exists() or not LAYA_SERVICE.exists() or laya_online(0.2):
         return
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    if not claim_laya_start():
+        return
     env = os.environ.copy()
     env.update({"HF_HOME": str(LAYA_DIR / "cache" / "huggingface"), "CUDA_VISIBLE_DEVICES": "", "OMP_NUM_THREADS": "4"})
-    subprocess.Popen([str(LAYA_PYTHON), str(LAYA_SERVICE)], cwd=str(LAYA_SERVICE.parent), env=env, creationflags=flags, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    spawn_hidden([str(LAYA_PYTHON), str(LAYA_SERVICE)], cwd=str(LAYA_SERVICE.parent), env=env)
 
 
 def emit(event: str, context: str = "", system_message: str = "") -> None:
@@ -66,10 +97,8 @@ def health_summary() -> str:
     except (OSError, json.JSONDecodeError):
         report = None
     if report is None or time.time() - report.get("at", 0) > 24 * 3600:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
         try:
-            subprocess.Popen([sys.executable, str(ROOT / "app.py"), "health", "--refresh"], cwd=str(ROOT), creationflags=flags,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            spawn_hidden([sys.executable, str(ROOT / "app.py"), "health", "--refresh"], cwd=str(ROOT))
         except OSError:
             pass
     if not report:
@@ -84,10 +113,8 @@ def claude_cli_notice() -> str:
     import claude_cli
     status = claude_cli.read_cache()
     if status is None or time.time() - status.get("at", 0) > claude_cli.MAX_AGE:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
         try:
-            subprocess.Popen([sys.executable, str(ROOT / "app.py"), "claude-version", "--refresh"], cwd=str(ROOT), creationflags=flags,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            spawn_hidden([sys.executable, str(ROOT / "app.py"), "claude-version", "--refresh"], cwd=str(ROOT))
         except OSError:
             pass
     return claude_cli.headline(status)

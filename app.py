@@ -32,13 +32,14 @@ MAX_FILES = 1200
 MAX_SKILL_CHARS = 18_000
 HEAD_CHARS = 16000
 INVENTORY_TTL = 3600
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 INVENTORY_VERSION = "2"  # bump when the cached Skill fields change meaning
 SCAN_TTL = 900
 LAYA_URL = "http://127.0.0.1:9130"
 IGNORED_DIRS = {".git", "node_modules", ".next", "dist", "build", "vendor", "venv", ".venv", "__pycache__", ".pnpm-store", ".cache"}
 MANIFESTS = {"package.json", "pyproject.toml", "requirements.txt", "docker-compose.yml", "dockerfile", "wrangler.toml", "vite.config.ts", "next.config.js", "next.config.mjs", "cargo.toml", "go.mod", "pubspec.yaml", "composer.json", "gemfile"}
-DEFAULT_CONFIG = {"max_skills": 4, "include_plugins": True, "pinned": [], "blocked": [], "context_limit": None}
+# "laya" is opt-in: the classifier holds ~900 MB of RAM and rarely changes the selection.
+DEFAULT_CONFIG = {"max_skills": 4, "include_plugins": True, "pinned": [], "blocked": [], "context_limit": None, "laya": False}
 
 SIGNALS = {
     "frontend": {"react", "next", "vue", "svelte", "astro", "css", "tailwind", "landing", "frontend", "website", "ui", "ux"},
@@ -479,7 +480,7 @@ def analyze(project_path: str, task: str, config: dict | None = None) -> dict:
     task_words |= {w[:-1] for w in task_words if len(w) > 3 and w.endswith("s")}
     categories = [name for name, keys in SIGNALS.items() if any((k in task_words) if " " not in k else (k in task_text) for k in keys)]
     # The classifier only runs when keywords are not enough: saves ~300 ms per prompt.
-    laya_hits, laya_evidence = laya_categories(task) if not categories else ([], None)
+    laya_hits, laya_evidence = laya_categories(task) if not categories and config.get("laya") else ([], None)
     # Laya always returns some category, so it only confirms or adds with a lower weight.
     laya_only = [c for c in laya_hits if c not in categories]
     # Project-only signals (no hint in the task) weigh little: the stack does not say what is being done.

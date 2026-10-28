@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-28
+
+### Changed
+
+- **The Laya classifier is now opt-in.** It is off unless `config.json` has `"laya": true`, and neither the hooks nor `start.ps1` launch it otherwise. On 22 real prompts that reached it, it changed the selection twice, and neither change was an improvement. Each call cost about 330 ms, and each service held about 900 MB of RAM.
+
+### Fixed
+
+- **Duplicate Laya services.**
+  - Cause: every `SessionStart` hook checked whether the service answered within 0.2 s and launched a new one if it did not. While the model is loading, which takes several seconds, the service never answers, so sessions opening together (for example after a reboot) each launched their own copy.
+  - On Windows the extra copies did not exit. Python's `HTTPServer` sets `SO_REUSEADDR`, which lets a second socket share the same port. In one case this left three services running and about 2.7 GB of RAM in use, with only one of them listening.
+  - Fix: an atomic start marker in `.state/laya-starting` now allows one launch per 180 s. The README describes how to write the service so that a duplicate exits before it loads the model.
+- **Console windows opening from background refreshes.** The daily health audit and the Claude Code version check ran with `DETACHED_PROCESS`. A detached process has no console, so Windows gives every console program it runs a new, visible window. They now run with `CREATE_NO_WINDOW`, and the programs they call share that hidden console.
+
 ## [1.0.0] - 2026-10-15
 
 First public release.
@@ -36,5 +50,6 @@ First public release.
 - Skill code is never executed during analysis, audits or discovery.
 - Private vulnerability reporting through GitHub security advisories, described in `SECURITY.md`.
 
-[Unreleased]: https://github.com/rec0des/claude-skill-router/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/rec0des/claude-skill-router/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/rec0des/claude-skill-router/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/rec0des/claude-skill-router/releases/tag/v1.0.0
